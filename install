@@ -34,6 +34,8 @@ else
     exit 1
 fi
 
+mkdir -p "${BINARY_DIRECTORY}" || exit 2
+
 # Get the current logged-in user
 USERNAME=$USER
 
@@ -41,7 +43,7 @@ set -e
 
 VERSION=$(curl --silent --location --max-time "${TIMEOUT}" "https://api.github.com/repos/${GH_REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 if [ ! "$VERSION" ]; then
-    echo -ne "\nThere was an error trying to check what is the latest version of airbox shipper.\nPlease try again later.\n"
+    echo -ne "\nThere was an error trying to check what is the latest version of AirBox Shipper.\nPlease try again later.\n"
     exit 1
 fi
 
@@ -94,7 +96,7 @@ curl --silent --location --max-time "${TIMEOUT}" "${LINK}" | tar zxf - || {
     exit 2
 }
 
-cp airbox-shipper "${BINARY_PATH}" || exit 2
+cp shipper "${BINARY_PATH}/airbox-shipper" || exit 2
 chmod 755 "${BINARY_PATH}/airbox-shipper" || exit 2
 case "$OS" in
 'linux')
@@ -109,26 +111,22 @@ case "$OS" in
     ;;
 esac
 
-mkdir -p "${BINARY_DIRECTORY}" || exit 2
+# Check if the airbox-shipper exists in the /usr/local/bin directory
+if [ ! -f "${BINARY_PATH}/airbox-shipper" ]; then
+    echo "Installation unsuccessful: AirBox Shipper is not found in ${BINARY_PATH}"
+    exit 2
+fi
 
 rm -rf "${TMP_DIR}"
 echo "Installed successfully to ${BINARY_PATH}/airbox-shipper"
 
 # Create a Systemd unit file
 SERVICE_DIRECTORY="/etc/systemd/system/airbox-shipper.service"
-case "$OS" in
-'darwin')
-    SERVICE_DIRECTORY="/Library/LaunchDaemons/airbox-shipper.plist" || exit 2
-    ;;
-*)
-    echo 'OS not supported'
-    exit 2
-    ;;
-esac
 
 if [[ "$OS" == "darwin" ]]; then
     # macOS
     PLIST_PATH="/Library/LaunchDaemons/airbox-shipper.plist"
+    SERVICE_DIRECTORY="/Library/LaunchDaemons/airbox-shipper.plist" || exit 2
 
     # Create the plist file
     sudo tee "$PLIST_PATH" >/dev/null <<EOF
