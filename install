@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+
+GH_REPO="airbox-build/shipper"
+TIMEOUT=90
+CONFIG_PATH="/etc/airbox/shipper.yml"
+
+# Parse command line arguments
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    --config)
+      CONFIG_PATH="$2"
+      shift
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
+
+# Determine the operating system
+OS=$(uname -s)
+BINARY_PATH="/usr/local/bin"
+BINARY_DIRECTORY=""
+
+# Set the default binary path and directory based on the operating system
+if [ "${OS}" = "Linux" ]; then
+    BINARY_DIRECTORY="/opt/airbox"
+elif [ "${OS}" = "Darwin" ]; then
+    BINARY_DIRECTORY="/usr/local/airbox"
+else
+    echo "Unsupported operating system: ${OS}"
+    exit 1
+fi
+
+# Get the current logged-in user
+USERNAME=$USER
+
+set -e
+
+VERSION=$(curl --silent --location --max-time "${TIMEOUT}" "https://api.github.com/repos/${GH_REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+if [ ! "$VERSION" ]; then
+    echo -ne "\nThere was an error trying to check what is the latest version of airbox shipper.\nPlease try again later.\n"
+    exit 1
+fi
+
+# detect the platform
+OS="$(uname)"
+case $OS in
+Linux)
+    OS='linux'
+    ;;
+Darwin)
+    OS='darwin'
+    ;;
+*)
+    echo 'OS not supported'
+    exit 2
+    ;;
+esac
+
+# detect the arch
+OS_type="$(uname -m)"
+case "$OS_type" in
+x86_64 | amd64)
+    OS_type='amd64'
+    ;;
+i?86 | x86)
+    OS_type='386'
+    ;;
+aarch64 | arm64)
+    OS_type='arm64'
+    ;;
+*)
+    echo 'OS type not supported'
+    exit 2
+    ;;
+esac
+
+GH_REPO_BIN="airbox-shipper-${VERSION}-${OS}-${OS_type}.tar.gz"
+
+#create tmp directory and move to it with macOS compatibility fallback
+TMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t 'airbox-shipper-install.XXXXXXXXXX')
+echo "Change to temporary directory ${TMP_DIR}"
+cd "$TMP_DIR"
+
+echo "Downloading airbox shipper $VERSION"
+LINK="https://github.com/${GH_REPO}/releases/download/${VERSION}/${GH_REPO_BIN}"
+
+curl --silent --location --max-time "${TIMEOUT}" "${LINK}" | tar zxf - || {
+    echo "Error downloading"
+    exit 2
+}
+
+cp airbox-shipper "${BINARY_PATH}" || exit 2
+chmod 755 "${BINARY_PATH}/airbox-shipper" || exit 2
+case "$OS" in
+'linux')
+    chown root:root "${BINARY_PATH}/airbox-shipper" || exit 2
+    ;;
+'freebsd' | 'openbsd' | 'netbsd' | 'darwin')
+    chown root:wheel "${BINARY_PATH}/airbox-shipper" || exit 2
+    ;;
+*)
+    echo 'OS not supported'
+    exit 2
+    ;;
+esac
+
+mkdir -p "${BINARY_DIRECTORY}" || exit 2
+
+rm -rf "${TMP_DIR}"
+echo "Installed successfully to ${BINARY_PATH}/airbox-shipper"
+
+# Create a Systemd unit file
+SERVICE_DIRECTORY="/etc/systemd/system/airbox-shipper.service"
+case "$OS" in
+'darwin')
+    SERVICE_DIRECTORY="/Library/LaunchDaemons/airbox-shipper.plist" || exit 2
+    ;;
+*)
+    echo 'OS not supported'
+    exit 2
+    ;;
+esac
+
+if [[ "$OS" == "darwin" ]]; then
+    # macOS
+    PLIST_PATH="/Library/LaunchDaemons/airbox-shipper.plist"
+
+    # Create the plist file
+    sudo tee "$PLIST_PATH" >/dev/null <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.airbox.shipper</string>
+    <key>Description</key>
+    <string>AirBox Shipper Service</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${BINARY_PATH}/airbox-shipper</string>
+        <string>--config=${CONFIG_PATH}</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>${BINARY_DIRECTORY}</string>
+    <key>KeepAlive</key>
+    <true/>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>UserName</key>
+    <string>${USERNAME}</string>
+</dict>
+</plist>
+EOF
+    echo "Run sudo launchctl load ${PLIST_PATH} to load the service on startup."
+else
+
+    sudo tee "${SERVICE_DIRECTORY}" >/dev/null <<EOF
+[Unit]
+Description=AirBox Shipper Service
+After=network.target
+
+[Service]
+ExecStart=${BINARY_PATH}/airbox-shipper --config=${CONFIG_PATH}
+WorkingDirectory=${BINARY_DIRECTORY}
+Restart=always
+User=${USERNAME}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Enable and start the service
+    echo "Run sudo systemctl enable airbox-shipper.service to enable AirBox Shipper to start on startup."
+    echo "Run sudo systemctl start airbox-shipper.service to start the service."
+
+fi
+
+echo "AirBox Shipper service has been installed."
