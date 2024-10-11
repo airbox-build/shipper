@@ -43,15 +43,16 @@ switch ($OS_type) {
     }
 }
 
-$GH_REPO_BIN = "airbox-shipper-${VERSION}-windows-${OS_type}.tar.gz"
+$GH_REPO_BIN = "shipper-${VERSION}-windows-${OS_type}.tar.gz"
 
 # Create tmp directory
 $TMP_DIR = New-TemporaryFile -Directory | Select-Object -ExpandProperty FullName
 Write-Host "Change to temporary directory $TMP_DIR"
 Set-Location $TMP_DIR
 
-Write-Host "Downloading airbox shipper $VERSION"
+Write-Host "Downloading AirBox Shipper $VERSION"
 $LINK = "https://github.com/$GH_REPO/releases/download/$VERSION/$GH_REPO_BIN"
+Write-Host "Downloading $LINK"
 
 Invoke-WebRequest -Uri $LINK -OutFile "$TMP_DIR\$GH_REPO_BIN"
 if (-not $?) {

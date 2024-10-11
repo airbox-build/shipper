@@ -78,15 +78,16 @@ aarch64 | arm64)
     ;;
 esac
 
-GH_REPO_BIN="airbox-shipper-${VERSION}-${OS}-${OS_type}.tar.gz"
+GH_REPO_BIN="shipper-${VERSION}-${OS}-${OS_type}.tar.gz"
 
 #create tmp directory and move to it with macOS compatibility fallback
-TMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t 'airbox-shipper-install.XXXXXXXXXX')
+TMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t 'shipper-install.XXXXXXXXXX')
 echo "Change to temporary directory ${TMP_DIR}"
 cd "$TMP_DIR"
 
-echo "Downloading airbox shipper $VERSION"
+echo "Downloading AirBox Shipper $VERSION"
 LINK="https://github.com/${GH_REPO}/releases/download/${VERSION}/${GH_REPO_BIN}"
+echo "Downloading $LINK"
 
 curl --silent --location --max-time "${TIMEOUT}" "${LINK}" | tar zxf - || {
     echo "Error downloading"
