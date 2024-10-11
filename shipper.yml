@@ -1,0 +1,23 @@
+# Path pattern to specify the location of JSON files to be processed.
+# Example: "/tmp/airbox/*.json" to match all JSON files in the given directory.
+path_pattern: "/tmp/airbox/*.json"
+
+# Maximum number of files to process at one time.
+# Example: 60 means the app will read and process up to 60 files at once.
+max_files: 60
+
+# The API endpoint to which the payload will be sent.
+# This should be the URL of the API you want to send the data to.
+api_endpoint: "https://api.airbox.build/shipper/metrics"
+
+# The API token required for authenticating with the API endpoint.
+# Replace "YOUR_API_TOKEN" with the actual token provided by the API.
+api_token: "YOUR_API_TOKEN"
+
+# The server key used to secure the connection to the API endpoint.
+# Replace "YOUR_SERVER_KEY" with the actual server key provided by the API.
+server_key: "YOUR_SERVER_KEY"
+
+# Interval at which the app should check for new files.
+# Example: "10s" means the app will check every 10 seconds.
+check_interval: 10s
