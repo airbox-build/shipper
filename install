@@ -2,6 +2,7 @@
 
 GH_REPO="airbox-build/shipper"
 TIMEOUT=90
+DEFAULT_CONFIG_URL="https://raw.githubusercontent.com/airbox-build/shipper/refs/heads/main/shipper.yml"
 CONFIG_PATH="/etc/airbox/shipper.yml"
 
 # Parse command line arguments
@@ -47,7 +48,7 @@ if [ ! "$VERSION" ]; then
     exit 1
 fi
 
-# detect the platform
+# Detect the platform
 OS="$(uname)"
 case $OS in
 Linux)
@@ -62,7 +63,7 @@ Darwin)
     ;;
 esac
 
-# detect the arch
+# Detect the architecture
 OS_type="$(uname -m)"
 case "$OS_type" in
 x86_64 | amd64)
@@ -82,7 +83,7 @@ esac
 
 GH_REPO_BIN="shipper-${VERSION}-${OS}-${OS_type}.tar.gz"
 
-#create tmp directory and move to it with macOS compatibility fallback
+# Create temporary directory with macOS compatibility fallback
 TMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t 'shipper-install.XXXXXXXXXX')
 echo "Change to temporary directory ${TMP_DIR}"
 cd "$TMP_DIR"
@@ -98,6 +99,7 @@ curl --silent --location --max-time "${TIMEOUT}" "${LINK}" | tar zxf - || {
 
 cp shipper "${BINARY_PATH}/airbox-shipper" || exit 2
 chmod 755 "${BINARY_PATH}/airbox-shipper" || exit 2
+
 case "$OS" in
 'linux')
     chown root:root "${BINARY_PATH}/airbox-shipper" || exit 2
@@ -111,24 +113,30 @@ case "$OS" in
     ;;
 esac
 
-# Check if the airbox-shipper exists in the /usr/local/bin directory
+# Verify installation
 if [ ! -f "${BINARY_PATH}/airbox-shipper" ]; then
-    echo "Installation unsuccessful: AirBox Shipper is not found in ${BINARY_PATH}"
+    echo "Installation unsuccessful: AirBox Shipper not found in ${BINARY_PATH}"
     exit 2
+fi
+
+# Download config file if it doesn't exist
+if [ ! -f "${CONFIG_PATH}" ]; then
+    echo "Downloading default configuration file to ${CONFIG_PATH}"
+    sudo curl --silent --location --max-time "${TIMEOUT}" "${DEFAULT_CONFIG_URL}" -o "${CONFIG_PATH}" || {
+        echo "Error downloading the configuration file"
+        exit 2
+    }
 fi
 
 rm -rf "${TMP_DIR}"
 echo "Installed successfully to ${BINARY_PATH}/airbox-shipper"
 
-# Create a Systemd unit file
+# Create system service or plist based on OS
 SERVICE_DIRECTORY="/etc/systemd/system/airbox-shipper.service"
 
 if [[ "$OS" == "darwin" ]]; then
-    # macOS
     PLIST_PATH="/Library/LaunchDaemons/airbox-shipper.plist"
-    SERVICE_DIRECTORY="/Library/LaunchDaemons/airbox-shipper.plist" || exit 2
 
-    # Create the plist file
     sudo tee "$PLIST_PATH" >/dev/null <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -154,9 +162,9 @@ if [[ "$OS" == "darwin" ]]; then
 </dict>
 </plist>
 EOF
+
     echo "Run sudo launchctl load ${PLIST_PATH} to load the service on startup."
 else
-
     sudo tee "${SERVICE_DIRECTORY}" >/dev/null <<EOF
 [Unit]
 Description=AirBox Shipper Service
@@ -172,10 +180,8 @@ User=${USERNAME}
 WantedBy=multi-user.target
 EOF
 
-    # Enable and start the service
-    echo "Run sudo systemctl enable airbox-shipper.service to enable AirBox Shipper to start on startup."
+    echo "Run sudo systemctl enable airbox-shipper.service to enable the service."
     echo "Run sudo systemctl start airbox-shipper.service to start the service."
-
 fi
 
 echo "AirBox Shipper service has been installed."
