@@ -109,7 +109,6 @@ stdout_logfile=/var/log/${SERVICE_NAME}.out.log
 EOF
   sudo supervisorctl reread
   sudo supervisorctl update
-  sudo supervisorctl start ${SERVICE_NAME}
 }
 
 # Function to create systemd service
